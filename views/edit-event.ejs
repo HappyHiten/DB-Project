@@ -8,6 +8,11 @@
 </head>
 <body>
     <div class="container">
+        <div class="nav-bar">
+            <a href="/events/<%= event.id %>" class="back-link">← Back to Event</a>
+            <span>Welcome, <%= user.name %> | <a href="/logout">Logout</a></span>
+        </div>
+        
         <div class="form-container">
             <h1>Edit Event</h1>
             

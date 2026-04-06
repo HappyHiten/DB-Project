@@ -8,6 +8,11 @@
 </head>
 <body>
     <div class="container">
+        <div class="nav-bar">
+            <a href="/" class="back-link">← Back to Events</a>
+            <span>Welcome, <%= user.name %> | <a href="/logout">Logout</a></span>
+        </div>
+        
         <div class="form-container">
             <h1>Create New Event</h1>
             
@@ -41,23 +46,26 @@
                 
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="venue_id">Venue ID</label>
+                        <label for="venue_id">Venue</label>
                         <select id="venue_id" name="venue_id">
                             <option value="">Select Venue</option>
                             <option value="1">Convention Center Hall A (500 cap)</option>
                             <option value="2">Tech Hub Meeting Room (50 cap)</option>
                             <option value="3">University Auditorium (300 cap)</option>
+                            <option value="4">Downtown Conference Center (200 cap)</option>
+                            <option value="5">Virtual Platform (1000 cap)</option>
                         </select>
                     </div>
                     
                     <div class="form-group">
-                        <label for="category_id">Category ID</label>
+                        <label for="category_id">Category</label>
                         <select id="category_id" name="category_id">
                             <option value="">Select Category</option>
                             <option value="1">Conference</option>
                             <option value="2">Workshop</option>
                             <option value="3">Social</option>
                             <option value="4">Webinar</option>
+                            <option value="5">Seminar</option>
                         </select>
                     </div>
                 </div>
