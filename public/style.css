@@ -11,6 +11,69 @@ body {
     padding: 20px;
 }
 
+/* Auth Pages (Login/Register) */
+body.auth-page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.auth-container {
+    width: 100%;
+    max-width: 450px;
+    margin: 0 auto;
+}
+
+.auth-card {
+    background: white;
+    border-radius: 12px;
+    padding: 40px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    text-align: center;
+}
+
+.auth-card h1 {
+    color: #667eea;
+    margin-bottom: 10px;
+    font-size: 28px;
+}
+
+.auth-card h2 {
+    color: #333;
+    margin-bottom: 30px;
+    font-size: 20px;
+}
+
+.demo-credentials {
+    background: #f0f4ff;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 20px 0;
+    font-size: 14px;
+    text-align: left;
+}
+
+.demo-credentials p {
+    margin: 5px 0;
+}
+
+.auth-link {
+    margin-top: 20px;
+    color: #666;
+}
+
+.auth-link a {
+    color: #667eea;
+    text-decoration: none;
+}
+
+.auth-link a:hover {
+    text-decoration: underline;
+}
+
+/* Main Container */
 .container {
     max-width: 1200px;
     margin: 0 auto;
@@ -20,7 +83,27 @@ body {
     box-shadow: 0 20px 60px rgba(0,0,0,0.3);
 }
 
-/* Header Styles */
+/* Navigation Bar */
+.nav-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.back-link {
+    color: #007bff;
+    text-decoration: none;
+    font-size: 14px;
+}
+
+.back-link:hover {
+    text-decoration: underline;
+}
+
+/* Header */
 .header {
     display: flex;
     justify-content: space-between;
@@ -28,6 +111,8 @@ body {
     margin-bottom: 30px;
     padding-bottom: 20px;
     border-bottom: 2px solid #e0e0e0;
+    flex-wrap: wrap;
+    gap: 15px;
 }
 
 .header h1 {
@@ -35,7 +120,17 @@ body {
     font-size: 28px;
 }
 
-/* Button Styles */
+.welcome {
+    color: #666;
+    margin-top: 5px;
+}
+
+.header-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+/* Buttons */
 .btn {
     display: inline-block;
     padding: 10px 20px;
@@ -45,6 +140,7 @@ body {
     cursor: pointer;
     font-size: 14px;
     transition: all 0.3s ease;
+    font-weight: 500;
 }
 
 .btn-primary {
@@ -98,6 +194,11 @@ body {
     font-size: 12px;
 }
 
+.btn-block {
+    width: 100%;
+    display: block;
+}
+
 /* Events Grid */
 .events-grid {
     display: grid;
@@ -111,6 +212,7 @@ body {
     padding: 20px;
     transition: transform 0.3s ease, box-shadow 0.3s ease;
     background: white;
+    position: relative;
 }
 
 .event-card:hover {
@@ -118,9 +220,30 @@ body {
     box-shadow: 0 10px 30px rgba(0,0,0,0.1);
 }
 
+.event-badge {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: bold;
+}
+
+.event-badge.open {
+    background: #d4edda;
+    color: #155724;
+}
+
+.event-badge.closed {
+    background: #f8d7da;
+    color: #721c24;
+}
+
 .event-card h3 {
     margin-bottom: 15px;
     font-size: 20px;
+    padding-right: 60px;
 }
 
 .event-card h3 a {
@@ -141,30 +264,11 @@ body {
 }
 
 .event-capacity {
-    margin: 10px 0;
+    margin: 15px 0;
     padding: 8px;
     background: #f8f9fa;
     border-radius: 4px;
     text-align: center;
-}
-
-.event-status {
-    margin: 10px 0;
-    padding: 5px;
-    text-align: center;
-    border-radius: 4px;
-    font-size: 12px;
-    font-weight: bold;
-}
-
-.event-status.open {
-    background: #d4edda;
-    color: #155724;
-}
-
-.event-status.closed {
-    background: #f8d7da;
-    color: #721c24;
 }
 
 /* Form Styles */
@@ -192,6 +296,7 @@ body {
     border: 1px solid #ddd;
     border-radius: 6px;
     font-size: 14px;
+    font-family: inherit;
 }
 
 .form-group input:focus,
@@ -215,17 +320,6 @@ body {
 }
 
 /* Event Details Page */
-.back-link {
-    display: inline-block;
-    margin-bottom: 20px;
-    color: #007bff;
-    text-decoration: none;
-}
-
-.back-link:hover {
-    text-decoration: underline;
-}
-
 .event-details h1 {
     color: #333;
     margin-bottom: 20px;
@@ -270,6 +364,7 @@ body {
     border-radius: 8px;
     padding: 20px;
     margin-bottom: 30px;
+    text-align: center;
 }
 
 .registration-form h2 {
@@ -284,6 +379,11 @@ body {
 .attendees-section h2 {
     margin-bottom: 15px;
     color: #333;
+}
+
+/* Tables */
+.table-responsive {
+    overflow-x: auto;
 }
 
 .attendees-table {
@@ -309,6 +409,7 @@ body {
     background: #f8f9fa;
 }
 
+/* Badges */
 .badge {
     display: inline-block;
     padding: 3px 8px;
@@ -317,21 +418,12 @@ body {
     font-weight: bold;
 }
 
-.badge.open {
-    background: #d4edda;
-    color: #155724;
-}
-
-.badge.closed {
-    background: #f8d7da;
-    color: #721c24;
-}
-
 .badge.registered {
     background: #d4edda;
     color: #155724;
 }
 
+/* Alerts */
 .alert {
     padding: 12px;
     border-radius: 6px;
@@ -356,6 +448,18 @@ body {
     border: 1px solid #f5c6cb;
 }
 
+.alert-success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.alert-error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
 .no-events {
     text-align: center;
     padding: 40px;
@@ -370,7 +474,7 @@ body {
     
     .header {
         flex-direction: column;
-        gap: 15px;
+        text-align: center;
     }
     
     .events-grid {
@@ -399,10 +503,8 @@ body {
     .attendees-table td {
         padding: 8px;
     }
-}
-
-/* Loading Animation */
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    
+    .auth-card {
+        padding: 25px;
+    }
 }
