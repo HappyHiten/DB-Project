@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Registration System</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎉 Event Registration System</h1>
+            <a href="/events/create" class="btn btn-primary">+ Create New Event</a>
+        </div>
+        
+        <div class="events-grid">
+            <% if (events.length === 0) { %>
+                <div class="no-events">
+                    <p>No events found. Create your first event!</p>
+                </div>
+            <% } else { %>
+                <% events.forEach(event => { %>
+                    <div class="event-card">
+                        <h3><a href="/events/<%= event.id %>"><%= event.name %></a></h3>
+                        <div class="event-meta">
+                            <span>📅 <%= new Date(event.event_date).toLocaleDateString() %></span>
+                            <span>⏰ <%= event.event_time %></span>
+                        </div>
+                        <div class="event-meta">
+                            <span>📍 <%= event.venue_name || 'TBD' %></span>
+                            <span>🏷️ <%= event.category_name || 'Uncategorized' %></span>
+                        </div>
+                        <div class="event-capacity">
+                            👥 Capacity: <strong><%= event.current_registrations || 0 %> / <%= event.capacity %></strong>
+                        </div>
+                        <div class="event-status <%= event.status %>">
+                            Status: <%= event.status.toUpperCase() %>
+                        </div>
+                        <a href="/events/<%= event.id %>" class="btn btn-sm">View Details →</a>
+                    </div>
+                <% }); %>
+            <% } %>
+        </div>
+    </div>
+</body>
+</html>
