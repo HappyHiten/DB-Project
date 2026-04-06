@@ -7,21 +7,28 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Database connection - FIXED for Render PostgreSQL self-signed certificate
+// DATABASE CONNECTION - FIXED SSL CONFIGURATION
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL || 'postgresql://event_admin:SLW27RjZkxbWCT1NF5Zdt21rfpPsGynm@dpg-d7a2a46a2pns73f24ueg-a/event_registration_db_ll4n?ssl=true',
+    connectionString: process.env.DATABASE_URL,
     ssl: {
-        rejectUnauthorized: false,  // This fixes the self-signed certificate error
-        require: true
+        rejectUnauthorized: false,  // THIS IS THE KEY FIX
+        sslmode: 'require'
     }
 });
+
+// Alternative connection method if above doesn't work
+// const pool = new Pool({
+//     connectionString: process.env.DATABASE_URL + '?sslmode=require',
+//     ssl: { rejectUnauthorized: false }
+// });
 
 // Test database connection
 pool.connect((err, client, release) => {
     if (err) {
-        console.error('❌ Error connecting to database:', err.message);
+        console.error('❌ Database connection error:', err.message);
+        console.error('Full error:', err);
     } else {
-        console.log('✅ Connected to PostgreSQL database successfully!');
+        console.log('✅ Connected to PostgreSQL successfully!');
         release();
     }
 });
@@ -48,7 +55,7 @@ app.get('/', async (req, res) => {
         res.render('index', { events: result.rows });
     } catch (err) {
         console.error('Error fetching events:', err);
-        res.status(500).send('Server Error: ' + err.message);
+        res.status(500).send('Database Error: ' + err.message);
     }
 });
 
@@ -115,9 +122,7 @@ app.post('/events/:id/update', async (req, res) => {
 app.post('/events/:id/delete', async (req, res) => {
     const { id } = req.params;
     try {
-        // First delete all registrations for this event
         await pool.query('DELETE FROM Registration WHERE event_id = $1', [id]);
-        // Then delete the event
         await pool.query('DELETE FROM Event WHERE id = $1', [id]);
         res.redirect('/');
     } catch (err) {
@@ -130,7 +135,6 @@ app.post('/events/:id/delete', async (req, res) => {
 app.get('/events/:id', async (req, res) => {
     const { id } = req.params;
     try {
-        // Get event details
         const eventResult = await pool.query(
             `SELECT e.*, c.name as category_name, v.name as venue_name, v.address as venue_address
              FROM Event e
@@ -144,7 +148,6 @@ app.get('/events/:id', async (req, res) => {
             return res.status(404).send('Event not found');
         }
         
-        // JOIN operation: Get attendees for this event with user details
         const attendeesResult = await pool.query(`
             SELECT 
                 r.id as registration_id,
@@ -174,12 +177,10 @@ app.post('/events/:id/register', async (req, res) => {
     const { user_name, user_email } = req.body;
     
     try {
-        // Check if user exists, if not create one
         let userResult = await pool.query('SELECT id FROM "User" WHERE email = $1', [user_email]);
         let user_id;
         
         if (userResult.rows.length === 0) {
-            // INSERT new user
             const newUser = await pool.query(
                 'INSERT INTO "User" (name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id',
                 [user_name, user_email, 'default123', 'user']
@@ -189,17 +190,15 @@ app.post('/events/:id/register', async (req, res) => {
             user_id = userResult.rows[0].id;
         }
         
-        // Check if already registered
         const existingReg = await pool.query(
             'SELECT id FROM Registration WHERE user_id = $1 AND event_id = $2',
             [user_id, id]
         );
         
         if (existingReg.rows.length > 0) {
-            return res.send('<h3>You are already registered for this event!</h3><a href="/events/' + id + '">Go Back</a>');
+            return res.send('<h3>You are already registered!</h3><a href="/events/' + id + '">Go Back</a>');
         }
         
-        // Check event capacity
         const eventResult = await pool.query(
             'SELECT capacity, current_registrations, status FROM Event WHERE id = $1',
             [id]
@@ -208,31 +207,27 @@ app.post('/events/:id/register', async (req, res) => {
         const event = eventResult.rows[0];
         
         if (event.status === 'closed') {
-            return res.send('<h3>Sorry, registrations are closed for this event!</h3><a href="/events/' + id + '">Go Back</a>');
+            return res.send('<h3>Registrations are closed!</h3><a href="/events/' + id + '">Go Back</a>');
         }
         
         if (event.current_registrations >= event.capacity) {
-            return res.send('<h3>Sorry, this event is full!</h3><a href="/events/' + id + '">Go Back</a>');
+            return res.send('<h3>Event is full!</h3><a href="/events/' + id + '">Go Back</a>');
         }
         
-        // INSERT registration
         await pool.query(
-            `INSERT INTO Registration (user_id, event_id, status) 
-             VALUES ($1, $2, 'registered')`,
+            `INSERT INTO Registration (user_id, event_id, status) VALUES ($1, $2, 'registered')`,
             [user_id, id]
         );
         
-        // UPDATE current registrations count
         await pool.query(
-            `UPDATE Event SET current_registrations = current_registrations + 1 
-             WHERE id = $1`,
+            `UPDATE Event SET current_registrations = current_registrations + 1 WHERE id = $1`,
             [id]
         );
         
         res.redirect('/events/' + id);
     } catch (err) {
-        console.error('Error registering for event:', err);
-        res.status(500).send('Error registering for event: ' + err.message);
+        console.error('Error registering:', err);
+        res.status(500).send('Error registering: ' + err.message);
     }
 });
 
@@ -240,7 +235,6 @@ app.post('/events/:id/register', async (req, res) => {
 app.post('/registrations/:registration_id/cancel', async (req, res) => {
     const { registration_id } = req.params;
     try {
-        // Get event_id before deleting
         const regResult = await pool.query(
             'SELECT event_id FROM Registration WHERE id = $1',
             [registration_id]
@@ -252,10 +246,8 @@ app.post('/registrations/:registration_id/cancel', async (req, res) => {
         
         const event_id = regResult.rows[0].event_id;
         
-        // DELETE registration
         await pool.query('DELETE FROM Registration WHERE id = $1', [registration_id]);
         
-        // UPDATE - Decrease registration count
         await pool.query(
             `UPDATE Event SET current_registrations = current_registrations - 1 
              WHERE id = $1 AND current_registrations > 0`,
@@ -264,13 +256,11 @@ app.post('/registrations/:registration_id/cancel', async (req, res) => {
         
         res.redirect('/events/' + event_id);
     } catch (err) {
-        console.error('Error canceling registration:', err);
+        console.error('Error canceling:', err);
         res.status(500).send('Error canceling registration: ' + err.message);
     }
 });
 
-// Start server
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
-    console.log(`📱 Open your browser and navigate to http://localhost:${PORT}`);
+    console.log(`🚀 Server running on port ${PORT}`);
 });
