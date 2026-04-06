@@ -7,18 +7,19 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Database connection using Render PostgreSQL
+// Database connection - FIXED for Render PostgreSQL self-signed certificate
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL || 'postgresql://event_admin:SLW27RjZkxbWCT1NF5Zdt21rfpPsGynm@dpg-d7a2a46a2pns73f24ueg-a/event_registration_db_ll4n',
+    connectionString: process.env.DATABASE_URL || 'postgresql://event_admin:SLW27RjZkxbWCT1NF5Zdt21rfpPsGynm@dpg-d7a2a46a2pns73f24ueg-a/event_registration_db_ll4n?ssl=true',
     ssl: {
-        rejectUnauthorized: false // Required for Render PostgreSQL
+        rejectUnauthorized: false,  // This fixes the self-signed certificate error
+        require: true
     }
 });
 
 // Test database connection
 pool.connect((err, client, release) => {
     if (err) {
-        console.error('❌ Error connecting to database:', err.stack);
+        console.error('❌ Error connecting to database:', err.message);
     } else {
         console.log('✅ Connected to PostgreSQL database successfully!');
         release();
@@ -200,11 +201,16 @@ app.post('/events/:id/register', async (req, res) => {
         
         // Check event capacity
         const eventResult = await pool.query(
-            'SELECT capacity, current_registrations FROM Event WHERE id = $1',
+            'SELECT capacity, current_registrations, status FROM Event WHERE id = $1',
             [id]
         );
         
         const event = eventResult.rows[0];
+        
+        if (event.status === 'closed') {
+            return res.send('<h3>Sorry, registrations are closed for this event!</h3><a href="/events/' + id + '">Go Back</a>');
+        }
+        
         if (event.current_registrations >= event.capacity) {
             return res.send('<h3>Sorry, this event is full!</h3><a href="/events/' + id + '">Go Back</a>');
         }
@@ -264,7 +270,7 @@ app.post('/registrations/:registration_id/cancel', async (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
     console.log(`📱 Open your browser and navigate to http://localhost:${PORT}`);
 });
