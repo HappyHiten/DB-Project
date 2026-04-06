@@ -20,7 +20,6 @@ const pool = new Pool({
   }
 });
 
-// Test DB connection
 pool.connect((err, client, release) => {
   if (err) {
     console.error('❌ Database connection error:', err.message);
@@ -31,39 +30,88 @@ pool.connect((err, client, release) => {
   }
 });
 
-// Middleware
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.static('public'));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
-// TEMP ROUTE: check what tables exist in Render DB
+// -------- helper functions --------
+
+async function getAllTables() {
+  const result = await pool.query(`
+    SELECT table_name
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+    ORDER BY table_name;
+  `);
+  return result.rows.map(r => r.table_name);
+}
+
+function pickTable(tables, candidates) {
+  for (const name of candidates) {
+    if (tables.includes(name)) return `"${name}"`;
+  }
+  return null;
+}
+
+async function resolveTableNames() {
+  const tables = await getAllTables();
+
+  return {
+    tables,
+    eventTable: pickTable(tables, ['Event', 'event', 'events', 'Events']),
+    categoryTable: pickTable(tables, ['Category', 'category', 'categories', 'Categories']),
+    venueTable: pickTable(tables, ['Venue', 'venue', 'venues', 'Venues']),
+    userTable: pickTable(tables, ['User', 'user', 'users', 'Users']),
+    registrationTable: pickTable(tables, ['Registration', 'registration', 'registrations', 'Registrations'])
+  };
+}
+
+// -------- debug route --------
+
 app.get('/check-tables', async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT table_name
-      FROM information_schema.tables
-      WHERE table_schema = 'public'
-      ORDER BY table_name;
-    `);
-    res.json(result.rows);
+    const names = await resolveTableNames();
+    res.json(names);
   } catch (err) {
     console.error('Error checking tables:', err);
     res.status(500).send(err.message);
   }
 });
 
-// GET: Home page
+// -------- routes --------
+
+// Home page
 app.get('/', async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT e.*, c.name AS category_name, v.name AS venue_name
-      FROM "Event" e
-      LEFT JOIN "Category" c ON e.category_id = c.id
-      LEFT JOIN "Venue" v ON e.venue_id = v.id
-      ORDER BY e.event_date ASC
-    `);
+    const names = await resolveTableNames();
+
+    if (!names.eventTable) {
+      return res.status(500).send(
+        `Table for events was not found in Render DB.<br><br>
+         Existing tables: ${names.tables.join(', ') || 'none'}<br><br>
+         Open <a href="/check-tables">/check-tables</a> to inspect.`
+      );
+    }
+
+    let query = `SELECT e.*`;
+    if (names.categoryTable) query += `, c.name AS category_name`;
+    if (names.venueTable) query += `, v.name AS venue_name`;
+
+    query += ` FROM ${names.eventTable} e`;
+
+    if (names.categoryTable) {
+      query += ` LEFT JOIN ${names.categoryTable} c ON e.category_id = c.id`;
+    }
+
+    if (names.venueTable) {
+      query += ` LEFT JOIN ${names.venueTable} v ON e.venue_id = v.id`;
+    }
+
+    query += ` ORDER BY e.event_date ASC`;
+
+    const result = await pool.query(query);
     res.render('index', { events: result.rows });
   } catch (err) {
     console.error('Error fetching events:', err);
@@ -71,21 +119,29 @@ app.get('/', async (req, res) => {
   }
 });
 
-// GET: Show create event form
+// Show create event form
 app.get('/events/create', (req, res) => {
   res.render('create-event');
 });
 
-// POST: Create new event
+// Create event
 app.post('/events', async (req, res) => {
   const { name, description, event_date, event_time, capacity, venue_id, category_id } = req.body;
 
   try {
+    const names = await resolveTableNames();
+
+    if (!names.eventTable) {
+      return res.status(500).send('Event table not found. Check /check-tables');
+    }
+
     await pool.query(
-      `INSERT INTO "Event" (name, description, event_date, event_time, capacity, venue_id, category_id)
+      `INSERT INTO ${names.eventTable} 
+       (name, description, event_date, event_time, capacity, venue_id, category_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [name, description, event_date, event_time, capacity, venue_id || null, category_id || null]
     );
+
     res.redirect('/');
   } catch (err) {
     console.error('Error creating event:', err);
@@ -93,13 +149,19 @@ app.post('/events', async (req, res) => {
   }
 });
 
-// GET: Show edit event form
+// Show edit event form
 app.get('/events/:id/edit', async (req, res) => {
   const { id } = req.params;
 
   try {
+    const names = await resolveTableNames();
+
+    if (!names.eventTable) {
+      return res.status(500).send('Event table not found. Check /check-tables');
+    }
+
     const result = await pool.query(
-      'SELECT * FROM "Event" WHERE id = $1',
+      `SELECT * FROM ${names.eventTable} WHERE id = $1`,
       [id]
     );
 
@@ -114,14 +176,20 @@ app.get('/events/:id/edit', async (req, res) => {
   }
 });
 
-// POST: Update event
+// Update event
 app.post('/events/:id/update', async (req, res) => {
   const { id } = req.params;
   const { name, description, event_date, event_time, capacity, status } = req.body;
 
   try {
+    const names = await resolveTableNames();
+
+    if (!names.eventTable) {
+      return res.status(500).send('Event table not found. Check /check-tables');
+    }
+
     await pool.query(
-      `UPDATE "Event"
+      `UPDATE ${names.eventTable}
        SET name = $1,
            description = $2,
            event_date = $3,
@@ -139,13 +207,23 @@ app.post('/events/:id/update', async (req, res) => {
   }
 });
 
-// POST: Delete event
+// Delete event
 app.post('/events/:id/delete', async (req, res) => {
   const { id } = req.params;
 
   try {
-    await pool.query('DELETE FROM "Registration" WHERE event_id = $1', [id]);
-    await pool.query('DELETE FROM "Event" WHERE id = $1', [id]);
+    const names = await resolveTableNames();
+
+    if (!names.eventTable) {
+      return res.status(500).send('Event table not found. Check /check-tables');
+    }
+
+    if (names.registrationTable) {
+      await pool.query(`DELETE FROM ${names.registrationTable} WHERE event_id = $1`, [id]);
+    }
+
+    await pool.query(`DELETE FROM ${names.eventTable} WHERE id = $1`, [id]);
+
     res.redirect('/');
   } catch (err) {
     console.error('Error deleting event:', err);
@@ -153,41 +231,61 @@ app.post('/events/:id/delete', async (req, res) => {
   }
 });
 
-// GET: Event details
+// Event details
 app.get('/events/:id', async (req, res) => {
   const { id } = req.params;
 
   try {
-    const eventResult = await pool.query(
-      `SELECT e.*, c.name AS category_name, v.name AS venue_name, v.address AS venue_address
-       FROM "Event" e
-       LEFT JOIN "Category" c ON e.category_id = c.id
-       LEFT JOIN "Venue" v ON e.venue_id = v.id
-       WHERE e.id = $1`,
-      [id]
-    );
+    const names = await resolveTableNames();
+
+    if (!names.eventTable) {
+      return res.status(500).send('Event table not found. Check /check-tables');
+    }
+
+    let eventQuery = `SELECT e.*`;
+    if (names.categoryTable) eventQuery += `, c.name AS category_name`;
+    if (names.venueTable) eventQuery += `, v.name AS venue_name, v.address AS venue_address`;
+
+    eventQuery += ` FROM ${names.eventTable} e`;
+
+    if (names.categoryTable) {
+      eventQuery += ` LEFT JOIN ${names.categoryTable} c ON e.category_id = c.id`;
+    }
+
+    if (names.venueTable) {
+      eventQuery += ` LEFT JOIN ${names.venueTable} v ON e.venue_id = v.id`;
+    }
+
+    eventQuery += ` WHERE e.id = $1`;
+
+    const eventResult = await pool.query(eventQuery, [id]);
 
     if (eventResult.rows.length === 0) {
       return res.status(404).send('Event not found');
     }
 
-    const attendeesResult = await pool.query(
-      `SELECT
-          r.id AS registration_id,
-          u.name,
-          u.email,
-          r.status,
-          r.registration_timestamp
-       FROM "Registration" r
-       INNER JOIN "User" u ON r.user_id = u.id
-       WHERE r.event_id = $1
-       ORDER BY r.registration_timestamp DESC`,
-      [id]
-    );
+    let attendees = [];
+
+    if (names.registrationTable && names.userTable) {
+      const attendeesResult = await pool.query(
+        `SELECT
+            r.id AS registration_id,
+            u.name,
+            u.email,
+            r.status,
+            r.registration_timestamp
+         FROM ${names.registrationTable} r
+         INNER JOIN ${names.userTable} u ON r.user_id = u.id
+         WHERE r.event_id = $1
+         ORDER BY r.registration_timestamp DESC`,
+        [id]
+      );
+      attendees = attendeesResult.rows;
+    }
 
     res.render('event-details', {
       event: eventResult.rows[0],
-      attendees: attendeesResult.rows
+      attendees
     });
   } catch (err) {
     console.error('Error fetching event details:', err);
@@ -195,14 +293,20 @@ app.get('/events/:id', async (req, res) => {
   }
 });
 
-// POST: Register user for event
+// Register user
 app.post('/events/:id/register', async (req, res) => {
   const { id } = req.params;
   const { user_name, user_email } = req.body;
 
   try {
+    const names = await resolveTableNames();
+
+    if (!names.eventTable || !names.userTable || !names.registrationTable) {
+      return res.status(500).send('Required tables not found. Check /check-tables');
+    }
+
     let userResult = await pool.query(
-      'SELECT id FROM "User" WHERE email = $1',
+      `SELECT id FROM ${names.userTable} WHERE email = $1`,
       [user_email]
     );
 
@@ -210,7 +314,9 @@ app.post('/events/:id/register', async (req, res) => {
 
     if (userResult.rows.length === 0) {
       const newUser = await pool.query(
-        'INSERT INTO "User" (name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id',
+        `INSERT INTO ${names.userTable} (name, email, password, role)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id`,
         [user_name, user_email, 'default123', 'user']
       );
       user_id = newUser.rows[0].id;
@@ -219,7 +325,7 @@ app.post('/events/:id/register', async (req, res) => {
     }
 
     const existingReg = await pool.query(
-      'SELECT id FROM "Registration" WHERE user_id = $1 AND event_id = $2',
+      `SELECT id FROM ${names.registrationTable} WHERE user_id = $1 AND event_id = $2`,
       [user_id, id]
     );
 
@@ -228,7 +334,7 @@ app.post('/events/:id/register', async (req, res) => {
     }
 
     const eventResult = await pool.query(
-      'SELECT capacity, current_registrations, status FROM "Event" WHERE id = $1',
+      `SELECT capacity, current_registrations, status FROM ${names.eventTable} WHERE id = $1`,
       [id]
     );
 
@@ -247,13 +353,13 @@ app.post('/events/:id/register', async (req, res) => {
     }
 
     await pool.query(
-      `INSERT INTO "Registration" (user_id, event_id, status)
+      `INSERT INTO ${names.registrationTable} (user_id, event_id, status)
        VALUES ($1, $2, 'registered')`,
       [user_id, id]
     );
 
     await pool.query(
-      `UPDATE "Event"
+      `UPDATE ${names.eventTable}
        SET current_registrations = current_registrations + 1
        WHERE id = $1`,
       [id]
@@ -266,13 +372,19 @@ app.post('/events/:id/register', async (req, res) => {
   }
 });
 
-// POST: Cancel registration
+// Cancel registration
 app.post('/registrations/:registration_id/cancel', async (req, res) => {
   const { registration_id } = req.params;
 
   try {
+    const names = await resolveTableNames();
+
+    if (!names.registrationTable || !names.eventTable) {
+      return res.status(500).send('Required tables not found. Check /check-tables');
+    }
+
     const regResult = await pool.query(
-      'SELECT event_id FROM "Registration" WHERE id = $1',
+      `SELECT event_id FROM ${names.registrationTable} WHERE id = $1`,
       [registration_id]
     );
 
@@ -283,12 +395,12 @@ app.post('/registrations/:registration_id/cancel', async (req, res) => {
     const event_id = regResult.rows[0].event_id;
 
     await pool.query(
-      'DELETE FROM "Registration" WHERE id = $1',
+      `DELETE FROM ${names.registrationTable} WHERE id = $1`,
       [registration_id]
     );
 
     await pool.query(
-      `UPDATE "Event"
+      `UPDATE ${names.eventTable}
        SET current_registrations = current_registrations - 1
        WHERE id = $1 AND current_registrations > 0`,
       [event_id]
@@ -301,7 +413,6 @@ app.post('/registrations/:registration_id/cancel', async (req, res) => {
   }
 });
 
-// Start server
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
