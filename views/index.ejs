@@ -9,8 +9,14 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎉 Event Registration System</h1>
-            <a href="/events/create" class="btn btn-primary">+ Create New Event</a>
+            <div>
+                <h1>🎉 Event Registration System</h1>
+                <p class="welcome">Welcome, <strong><%= user.name %></strong>! (<%= user.email %>)</p>
+            </div>
+            <div class="header-buttons">
+                <a href="/events/create" class="btn btn-primary">+ Create New Event</a>
+                <a href="/logout" class="btn btn-secondary">Logout</a>
+            </div>
         </div>
         
         <div class="events-grid">
@@ -21,6 +27,7 @@
             <% } else { %>
                 <% events.forEach(event => { %>
                     <div class="event-card">
+                        <div class="event-badge <%= event.status %>"><%= event.status.toUpperCase() %></div>
                         <h3><a href="/events/<%= event.id %>"><%= event.name %></a></h3>
                         <div class="event-meta">
                             <span>📅 <%= new Date(event.event_date).toLocaleDateString() %></span>
@@ -32,9 +39,6 @@
                         </div>
                         <div class="event-capacity">
                             👥 Capacity: <strong><%= event.current_registrations || 0 %> / <%= event.capacity %></strong>
-                        </div>
-                        <div class="event-status <%= event.status %>">
-                            Status: <%= event.status.toUpperCase() %>
                         </div>
                         <a href="/events/<%= event.id %>" class="btn btn-sm">View Details →</a>
                     </div>
