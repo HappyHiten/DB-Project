@@ -7,22 +7,15 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// DATABASE CONNECTION - FIXED SSL CONFIGURATION
+// ✅ FIXED DATABASE CONNECTION (THIS IS THE KEY PART)
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: {
-        rejectUnauthorized: false,  // THIS IS THE KEY FIX
-        sslmode: 'require'
+        rejectUnauthorized: false
     }
 });
 
-// Alternative connection method if above doesn't work
-// const pool = new Pool({
-//     connectionString: process.env.DATABASE_URL + '?sslmode=require',
-//     ssl: { rejectUnauthorized: false }
-// });
-
-// Test database connection
+// ✅ Test database connection
 pool.connect((err, client, release) => {
     if (err) {
         console.error('❌ Database connection error:', err.message);
@@ -42,7 +35,7 @@ app.use(bodyParser.json());
 
 // ============ ROUTES ============
 
-// GET: Home page - List all events (RETRIEVE operation)
+// GET: Home page
 app.get('/', async (req, res) => {
     try {
         const result = await pool.query(`
@@ -59,12 +52,12 @@ app.get('/', async (req, res) => {
     }
 });
 
-// GET: Show create event form
+// GET: Create event page
 app.get('/events/create', (req, res) => {
     res.render('create-event');
 });
 
-// POST: INSERT - Create new event
+// POST: Create event
 app.post('/events', async (req, res) => {
     const { name, description, event_date, event_time, capacity, venue_id, category_id } = req.body;
     try {
@@ -80,7 +73,7 @@ app.post('/events', async (req, res) => {
     }
 });
 
-// GET: Show edit event form
+// GET: Edit event page
 app.get('/events/:id/edit', async (req, res) => {
     const { id } = req.params;
     try {
@@ -95,7 +88,7 @@ app.get('/events/:id/edit', async (req, res) => {
     }
 });
 
-// POST: UPDATE - Modify event
+// POST: Update event
 app.post('/events/:id/update', async (req, res) => {
     const { id } = req.params;
     const { name, description, event_date, event_time, capacity, status } = req.body;
@@ -118,7 +111,7 @@ app.post('/events/:id/update', async (req, res) => {
     }
 });
 
-// POST: DELETE - Remove event
+// POST: Delete event
 app.post('/events/:id/delete', async (req, res) => {
     const { id } = req.params;
     try {
@@ -131,7 +124,7 @@ app.post('/events/:id/delete', async (req, res) => {
     }
 });
 
-// GET: Show event details with attendees (JOIN operation)
+// GET: Event details
 app.get('/events/:id', async (req, res) => {
     const { id } = req.params;
     try {
@@ -143,11 +136,11 @@ app.get('/events/:id', async (req, res) => {
              WHERE e.id = $1`,
             [id]
         );
-        
+
         if (eventResult.rows.length === 0) {
             return res.status(404).send('Event not found');
         }
-        
+
         const attendeesResult = await pool.query(`
             SELECT 
                 r.id as registration_id,
@@ -160,26 +153,27 @@ app.get('/events/:id', async (req, res) => {
             WHERE r.event_id = $1
             ORDER BY r.registration_timestamp DESC
         `, [id]);
-        
+
         res.render('event-details', { 
             event: eventResult.rows[0],
             attendees: attendeesResult.rows
         });
+
     } catch (err) {
         console.error('Error fetching event details:', err);
         res.status(500).send('Server Error: ' + err.message);
     }
 });
 
-// POST: INSERT - Register user for event
+// POST: Register user
 app.post('/events/:id/register', async (req, res) => {
     const { id } = req.params;
     const { user_name, user_email } = req.body;
-    
+
     try {
         let userResult = await pool.query('SELECT id FROM "User" WHERE email = $1', [user_email]);
         let user_id;
-        
+
         if (userResult.rows.length === 0) {
             const newUser = await pool.query(
                 'INSERT INTO "User" (name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id',
@@ -189,78 +183,54 @@ app.post('/events/:id/register', async (req, res) => {
         } else {
             user_id = userResult.rows[0].id;
         }
-        
-        const existingReg = await pool.query(
-            'SELECT id FROM Registration WHERE user_id = $1 AND event_id = $2',
-            [user_id, id]
-        );
-        
-        if (existingReg.rows.length > 0) {
-            return res.send('<h3>You are already registered!</h3><a href="/events/' + id + '">Go Back</a>');
-        }
-        
-        const eventResult = await pool.query(
-            'SELECT capacity, current_registrations, status FROM Event WHERE id = $1',
-            [id]
-        );
-        
-        const event = eventResult.rows[0];
-        
-        if (event.status === 'closed') {
-            return res.send('<h3>Registrations are closed!</h3><a href="/events/' + id + '">Go Back</a>');
-        }
-        
-        if (event.current_registrations >= event.capacity) {
-            return res.send('<h3>Event is full!</h3><a href="/events/' + id + '">Go Back</a>');
-        }
-        
+
         await pool.query(
             `INSERT INTO Registration (user_id, event_id, status) VALUES ($1, $2, 'registered')`,
             [user_id, id]
         );
-        
+
         await pool.query(
             `UPDATE Event SET current_registrations = current_registrations + 1 WHERE id = $1`,
             [id]
         );
-        
+
         res.redirect('/events/' + id);
+
     } catch (err) {
         console.error('Error registering:', err);
         res.status(500).send('Error registering: ' + err.message);
     }
 });
 
-// POST: DELETE - Cancel registration
+// POST: Cancel registration
 app.post('/registrations/:registration_id/cancel', async (req, res) => {
     const { registration_id } = req.params;
+
     try {
         const regResult = await pool.query(
             'SELECT event_id FROM Registration WHERE id = $1',
             [registration_id]
         );
-        
-        if (regResult.rows.length === 0) {
-            return res.status(404).send('Registration not found');
-        }
-        
+
         const event_id = regResult.rows[0].event_id;
-        
+
         await pool.query('DELETE FROM Registration WHERE id = $1', [registration_id]);
-        
+
         await pool.query(
             `UPDATE Event SET current_registrations = current_registrations - 1 
              WHERE id = $1 AND current_registrations > 0`,
             [event_id]
         );
-        
+
         res.redirect('/events/' + event_id);
+
     } catch (err) {
         console.error('Error canceling:', err);
         res.status(500).send('Error canceling registration: ' + err.message);
     }
 });
 
+// START SERVER
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`);
 });
