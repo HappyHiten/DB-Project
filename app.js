@@ -38,6 +38,22 @@ app.use(express.static('public'));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
+// TEMP ROUTE: check what tables exist in Render DB
+app.get('/check-tables', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+      ORDER BY table_name;
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error checking tables:', err);
+    res.status(500).send(err.message);
+  }
+});
+
 // GET: Home page
 app.get('/', async (req, res) => {
   try {
@@ -55,14 +71,15 @@ app.get('/', async (req, res) => {
   }
 });
 
-// GET: Create event page
+// GET: Show create event form
 app.get('/events/create', (req, res) => {
   res.render('create-event');
 });
 
-// POST: Create event
+// POST: Create new event
 app.post('/events', async (req, res) => {
   const { name, description, event_date, event_time, capacity, venue_id, category_id } = req.body;
+
   try {
     await pool.query(
       `INSERT INTO "Event" (name, description, event_date, event_time, capacity, venue_id, category_id)
@@ -76,14 +93,20 @@ app.post('/events', async (req, res) => {
   }
 });
 
-// GET: Edit event page
+// GET: Show edit event form
 app.get('/events/:id/edit', async (req, res) => {
   const { id } = req.params;
+
   try {
-    const result = await pool.query('SELECT * FROM "Event" WHERE id = $1', [id]);
+    const result = await pool.query(
+      'SELECT * FROM "Event" WHERE id = $1',
+      [id]
+    );
+
     if (result.rows.length === 0) {
       return res.status(404).send('Event not found');
     }
+
     res.render('edit-event', { event: result.rows[0] });
   } catch (err) {
     console.error('Error fetching event:', err);
@@ -95,18 +118,20 @@ app.get('/events/:id/edit', async (req, res) => {
 app.post('/events/:id/update', async (req, res) => {
   const { id } = req.params;
   const { name, description, event_date, event_time, capacity, status } = req.body;
+
   try {
     await pool.query(
-      `UPDATE "Event" SET
-         name = $1,
-         description = $2,
-         event_date = $3,
-         event_time = $4,
-         capacity = $5,
-         status = $6
+      `UPDATE "Event"
+       SET name = $1,
+           description = $2,
+           event_date = $3,
+           event_time = $4,
+           capacity = $5,
+           status = $6
        WHERE id = $7`,
       [name, description, event_date, event_time, capacity, status, id]
     );
+
     res.redirect('/events/' + id);
   } catch (err) {
     console.error('Error updating event:', err);
@@ -117,6 +142,7 @@ app.post('/events/:id/update', async (req, res) => {
 // POST: Delete event
 app.post('/events/:id/delete', async (req, res) => {
   const { id } = req.params;
+
   try {
     await pool.query('DELETE FROM "Registration" WHERE event_id = $1', [id]);
     await pool.query('DELETE FROM "Event" WHERE id = $1', [id]);
@@ -130,6 +156,7 @@ app.post('/events/:id/delete', async (req, res) => {
 // GET: Event details
 app.get('/events/:id', async (req, res) => {
   const { id } = req.params;
+
   try {
     const eventResult = await pool.query(
       `SELECT e.*, c.name AS category_name, v.name AS venue_name, v.address AS venue_address
@@ -146,11 +173,11 @@ app.get('/events/:id', async (req, res) => {
 
     const attendeesResult = await pool.query(
       `SELECT
-         r.id AS registration_id,
-         u.name,
-         u.email,
-         r.status,
-         r.registration_timestamp
+          r.id AS registration_id,
+          u.name,
+          u.email,
+          r.status,
+          r.registration_timestamp
        FROM "Registration" r
        INNER JOIN "User" u ON r.user_id = u.id
        WHERE r.event_id = $1
@@ -168,7 +195,7 @@ app.get('/events/:id', async (req, res) => {
   }
 });
 
-// POST: Register user
+// POST: Register user for event
 app.post('/events/:id/register', async (req, res) => {
   const { id } = req.params;
   const { user_name, user_email } = req.body;
@@ -255,7 +282,10 @@ app.post('/registrations/:registration_id/cancel', async (req, res) => {
 
     const event_id = regResult.rows[0].event_id;
 
-    await pool.query('DELETE FROM "Registration" WHERE id = $1', [registration_id]);
+    await pool.query(
+      'DELETE FROM "Registration" WHERE id = $1',
+      [registration_id]
+    );
 
     await pool.query(
       `UPDATE "Event"
@@ -271,6 +301,7 @@ app.post('/registrations/:registration_id/cancel', async (req, res) => {
   }
 });
 
+// Start server
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
